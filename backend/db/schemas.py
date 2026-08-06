@@ -4,11 +4,11 @@ from pydantic import BaseModel, Field
 
 
 class CropRecommendationRequest(BaseModel):
-    N: int = Field(..., ge=0, le=300, description="Nitrogen content in soil (kg/ha)")
-    P: int = Field(..., ge=0, le=300, description="Phosphorus content in soil (kg/ha)")
-    K: int = Field(..., ge=0, le=300, description="Potassium content in soil (kg/ha)")
+    N: int = Field(..., ge=0, le=1000, description="Nitrogen content in soil (kg/ha)")
+    P: int = Field(..., ge=0, le=1000, description="Phosphorus content in soil (kg/ha)")
+    K: int = Field(..., ge=0, le=1000, description="Potassium content in soil (kg/ha)")
     ph: float = Field(..., ge=0, le=14, description="Soil pH")
-    rainfall: float = Field(..., ge=0, le=1000, description="Rainfall (mm)")
+    rainfall: float = Field(..., ge=0, le=5000, description="Rainfall (mm)")
     lat: Optional[float] = Field(None, description="Latitude, used to fetch live weather")
     lon: Optional[float] = Field(None, description="Longitude, used to fetch live weather")
     temperature: Optional[float] = Field(None, description="Override temperature (°C) if known")
@@ -18,7 +18,9 @@ class CropRecommendationRequest(BaseModel):
 class CropRecommendationResponse(BaseModel):
     success: bool
     prediction: Optional[str] = None
+    confidence: Optional[float] = None
     top_3: Optional[list[str]] = None
+    top_3_confidence: Optional[list[float]] = None
     inputs: Optional[dict[str, Any]] = None
     error: Optional[str] = None
 

@@ -12,8 +12,12 @@ const ENDPOINTS = {
   health:      `${API_BASE}/health`,
 };
 
-// ── Crops ──
-const crops = [
+// ── Fallback crop cards ──
+// Used ONLY when the live /predict-crop API is unreachable while online.
+// Clearly labeled "sample recommendation" in the UI — never shown as if it
+// were a real prediction. Real results come from buildRecResultForDisplay()
+// in cropData.js, driven entirely by the API response.
+const FALLBACK_CROPS = [
   {
     id: "rice",
     name: "Rice (Paddy)",
@@ -22,7 +26,7 @@ const crops = [
     confidence: 94,
     suitability: 92,
     duration: "120–140 days",
-    yield: "5.2 t/ha",
+    idealPh: "4.5–7.87",
     water: "High (1200 mm)",
     profit: "High",
     investment: "Medium",
@@ -50,7 +54,7 @@ const crops = [
     confidence: 88,
     suitability: 86,
     duration: "90–110 days",
-    yield: "6.0 t/ha",
+    idealPh: "4.5–7.0",
     water: "Medium (600 mm)",
     profit: "High",
     investment: "Low",
@@ -77,7 +81,7 @@ const crops = [
     confidence: 81,
     suitability: 79,
     duration: "100–120 days",
-    yield: "2.4 t/ha",
+    idealPh: "5.5–7.0",
     water: "Low (450 mm)",
     profit: "Medium",
     investment: "Low",
@@ -103,7 +107,7 @@ const crops = [
     confidence: 76,
     suitability: 74,
     duration: "160–180 days",
-    yield: "2.1 t/ha",
+    idealPh: "5.8–7.99",
     water: "Medium (700 mm)",
     profit: "High",
     investment: "High",
