@@ -1,5 +1,5 @@
 /* ================================================================
-   AgriSense AI — Design System  (vanilla CSS, zero dependencies)
+   Crop Sathi — Design System  (vanilla CSS, zero dependencies)
    Palette: #212922 dark-forest, #294936 deep-green, #3E6259 teal,
             #5B8266 sage, #AEF6C7 mint-accent, #FFFFFF white.
    ================================================================ */
@@ -436,6 +436,9 @@ input, textarea, select {
   height: 2.75rem;
   padding: 0;
   border-radius: var(--radius-lg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ================================================================

@@ -1,5 +1,5 @@
 /* ================================================================
-   app.js — AgriSense AI  SPA (hash-router, all pages, interactivity)
+   app.js — Crop Sathi  SPA (hash-router, all pages, interactivity)
    Depends on: icons.js, db.js, style.css
    ================================================================ */
 
@@ -24,7 +24,7 @@
     { hash: "#/contact", label: "Contact" },
   ];
 
-  const LANGUAGES = ["English", "हिन्दी", "தமிழ்", "తెలుగు", "मराठी"];
+  const LANGUAGES = ["English", "Santhali", "Bengali", "Bhashini API (Soon)"];
 
   // ── State ──
   let currentLang = "English";
@@ -99,14 +99,14 @@
   }
 
   function applyTheme() {
-    const stored = localStorage.getItem("agrisense-theme");
+    const stored = localStorage.getItem("cropsathi-theme");
     if (stored === "dark") document.documentElement.classList.add("dark");
   }
 
   function toggleTheme() {
     const next = !isDark();
     document.documentElement.classList.toggle("dark", next);
-    localStorage.setItem("agrisense-theme", next ? "dark" : "light");
+    localStorage.setItem("cropsathi-theme", next ? "dark" : "light");
     render(); // re-render to update sun/moon icon
   }
 
@@ -121,7 +121,7 @@
       <nav class="navbar-inner">
         <a href="#/" class="navbar-brand">
           <span class="navbar-brand-icon">${Icons.leaf(20)}</span>
-          <span class="navbar-brand-text">AgriSense AI</span>
+          <span class="navbar-brand-text">Crop Sathi</span>
         </a>
 
         <div class="navbar-links">
@@ -145,7 +145,7 @@
           </button>
 
           <a href="#/login" aria-label="Farmer profile">
-            <div class="avatar">RK</div>
+            <div class="avatar">${Icons.user(16)}</div>
           </a>
 
           <button class="btn-ghost btn-icon navbar-hamburger" aria-label="${mobileMenuOpen ? 'Close menu' : 'Open menu'}" onclick="App.toggleMobileMenu()">
@@ -175,7 +175,7 @@
         <div>
           <div class="flex items-center gap-2">
             <span class="navbar-brand-icon">${Icons.leaf(20)}</span>
-            <span class="navbar-brand-text">AgriSense AI</span>
+            <span class="navbar-brand-text">Crop Sathi</span>
           </div>
           <p class="mt-4 text-sm text-muted-foreground" style="max-width:20rem">
             AI powered crop recommendation for Indian farmers — soil, weather and market intelligence in one place.
@@ -202,13 +202,13 @@
         <div>
           <h3 class="footer-heading">Connect</h3>
           <ul class="footer-links">
-            <li>support@agrisense.ai</li>
+            <li>support@cropsathi.in</li>
             <li>1800-180-1551 (Kisan Call Centre)</li>
             <li>Twitter · YouTube · WhatsApp</li>
           </ul>
         </div>
       </div>
-      <div class="footer-bottom">© ${new Date().getFullYear()} AgriSense AI · Built for Smart India Hackathon</div>
+      <div class="footer-bottom">© ${new Date().getFullYear()} Crop Sathi · Built for Smart India Hackathon</div>
     </footer>`;
   }
 
@@ -350,7 +350,7 @@
     ];
 
     return `
-    ${pageHeader("Namaste, Arshad", "Kharif season · Nashik, Maharashtra · 3.2 acres")}
+    ${pageHeader("Namaste, Kisan", "Kharif season · Ranchi, Jharkhand · 3.2 acres")}
     <div class="container py-10">
       <div class="grid" style="grid-template-columns: repeat(3, 1fr)">
 
@@ -484,9 +484,9 @@
     0: [
       { name: "name", label: "Full name", placeholder: "Ramesh Kumar" },
       { name: "phone", label: "Phone number", placeholder: "98765 43210", type: "tel" },
-      { name: "state", label: "State", placeholder: "Maharashtra" },
-      { name: "district", label: "District", placeholder: "Nashik" },
-      { name: "village", label: "Village", placeholder: "Ozar" },
+      { name: "state", label: "State", placeholder: "Jharkhand" },
+      { name: "district", label: "District", placeholder: "Ranchi" },
+      { name: "village", label: "Village", placeholder: "Ormanjhi" },
     ],
     1: [
       { name: "size", label: "Farm size (acres)", placeholder: "3.2", type: "number" },
@@ -776,7 +776,7 @@
 
     // Use live data if available, otherwise fall back to mock
     const live = weatherData && weatherData.current;
-    const cityName = live ? live.city : "Nashik, Maharashtra";
+    const cityName = live ? live.city : "Ranchi, Jharkhand";
     const dataSource = live ? "live" : "cached sample";
 
     const metrics = live ? [
@@ -861,8 +861,27 @@
   // ============================================================
 
   let marketQuery = "";
+  let marketLoaded = false;
+  let marketLoading = false;
 
   function renderMarket() {
+    if (!marketLoaded && !marketLoading && !isOffline) {
+      marketLoading = true;
+      fetchMarketPrices().then(success => {
+        marketLoaded = true;
+        marketLoading = false;
+        render();
+      });
+    }
+
+    if (marketLoading) {
+      return `
+      ${pageHeader("Market prices", "Live mandi rates from nearby markets, updated daily")}
+      <div class="container py-10 flex items-center justify-center">
+        <p class="text-muted-foreground">Fetching latest prices from data.gov.in...</p>
+      </div>`;
+    }
+
     const filtered = marketPrices.filter(r =>
       r.crop.toLowerCase().includes(marketQuery.toLowerCase()) ||
       r.market.toLowerCase().includes(marketQuery.toLowerCase())
@@ -1175,29 +1194,56 @@
   //  SCHEMES PAGE
   // ============================================================
 
+  let schemesLoaded = false;
+  let schemesLoading = false;
+
   function renderSchemes() {
+    if (!schemesLoaded && !schemesLoading && !isOffline) {
+      schemesLoading = true;
+      fetchSchemes().then(success => {
+        schemesLoaded = true;
+        schemesLoading = false;
+        render();
+      });
+    }
+
+    if (schemesLoading) {
+      return `
+      ${pageHeader("Government schemes", "Central and state support you may be eligible for")}
+      <div class="container py-10 flex items-center justify-center">
+        <div class="spinner border-4 border-primary border-t-transparent rounded-full w-8 h-8 animate-spin"></div>
+      </div>`;
+    }
+
     return `
     ${pageHeader("Government schemes", "Central and state support you may be eligible for")}
     <div class="container py-10">
-      <div class="grid" style="grid-template-columns:repeat(2,1fr)">
-        ${schemes.map(s => `
-          <div class="card card-lift p-6 shadow-soft anim-fade-up" style="border-radius:var(--radius-3xl)">
-            <h2 class="text-xl font-semibold">${s.name}</h2>
-            <p class="mt-3 text-sm text-muted-foreground">
-              <span class="font-medium text-foreground">Benefits: </span>${s.benefit}
-            </p>
-            <p class="mt-2 text-sm text-muted-foreground">
-              <span class="font-medium text-foreground">Eligibility: </span>${s.eligibility}
-            </p>
-            <div class="flex flex-wrap gap-3 mt-6">
-              <a href="${s.link}" target="_blank" rel="noreferrer noopener" class="btn btn-primary btn-sm">Apply now</a>
-              <a href="${s.link}" target="_blank" rel="noreferrer noopener" class="btn btn-outline btn-sm">
-                Official link ${Icons.externalLink(14)}
-              </a>
+      ${schemes && schemes.length > 0 ? `
+        <div class="grid" style="grid-template-columns:repeat(2,1fr)">
+          ${schemes.map(s => `
+            <div class="card card-lift p-6 shadow-soft anim-fade-up" style="border-radius:var(--radius-3xl)">
+              <h2 class="text-xl font-semibold">${s.name}</h2>
+              <p class="mt-3 text-sm text-muted-foreground">
+                <span class="font-medium text-foreground">Benefits: </span>${s.benefit}
+              </p>
+              <p class="mt-2 text-sm text-muted-foreground">
+                <span class="font-medium text-foreground">Eligibility: </span>${s.eligibility}
+              </p>
+              <div class="flex flex-wrap gap-3 mt-6">
+                <a href="${s.link}" target="_blank" rel="noreferrer noopener" class="btn btn-primary btn-sm">Apply now</a>
+                <a href="${s.link}" target="_blank" rel="noreferrer noopener" class="btn btn-outline btn-sm">
+                  Official link ${Icons.externalLink(14)}
+                </a>
+              </div>
             </div>
-          </div>
-        `).join("")}
-      </div>
+          `).join("")}
+        </div>
+      ` : `
+        <div class="text-center py-10">
+          <p class="text-lg font-medium text-muted-foreground">No active schemes are available right now.</p>
+          <p class="text-sm text-muted-foreground mt-2">Please check back later for new government updates.</p>
+        </div>
+      `}
     </div>`;
   }
 
@@ -1207,14 +1253,14 @@
 
   function renderAbout() {
     return `
-    ${pageHeader("About AgriSense AI", "Agronomy, data science and farmer-first design")}
+    ${pageHeader("About Crop Sathi", "Agronomy, data science and farmer-first design")}
     <section class="section">
       <div class="grid gap-6" style="max-width:56rem;margin-inline:auto">
         <div class="card p-8 shadow-soft anim-fade-up" style="border-radius:var(--radius-3xl)">
           <h2 class="text-2xl font-semibold">Our mission</h2>
           <p class="mt-3 text-muted-foreground">
             More than half of India's workforce depends on agriculture, yet crop choice is still often made on habit
-            or hearsay. AgriSense AI turns soil test values, local weather and mandi trends into one clear,
+            or hearsay. Crop Sathi turns soil test values, local weather and mandi trends into one clear,
             explainable recommendation — in the farmer's own language.
           </p>
         </div>
@@ -1281,14 +1327,14 @@
         <div class="grid gap-6">
           <div class="card p-6 shadow-soft anim-fade-up delay-1" style="border-radius:var(--radius-3xl)">
             <h2 class="text-xl font-semibold">Reach us</h2>
-            <ul class="mt-4 grid gap-3 text-sm">
-              <li class="flex items-center gap-3"><span class="text-primary">${Icons.mail(16)}</span> support@agrisense.ai</li>
-              <li class="flex items-center gap-3"><span class="text-primary">${Icons.phone(16)}</span> 1800-180-1551</li>
-              <li class="flex items-center gap-3"><span class="text-primary">${Icons.mapPin(16)}</span> Field office, Ozar, Nashik 422206</li>
+            <ul class="mt-4 grid gap-3 text-sm text-muted-foreground">
+              <li class="flex items-center gap-3"><span class="text-primary">${Icons.mapPin(16)}</span> Field office, Ormanjhi, Ranchi 835219</li>
+              <li class="flex items-center gap-3"><span class="text-primary">${Icons.phone(16)}</span> 1800-180-1551 (Kisan Call Centre)</li>
+              <li class="flex items-center gap-3"><span class="text-primary">${Icons.mail(16)}</span> support@cropsathi.in</li>
             </ul>
             <div class="map-embed">
-              <iframe title="AgriSense AI field office location"
-                      src="https://www.google.com/maps?q=Nashik,Maharashtra&output=embed"
+              <iframe title="Crop Sathi field office location"
+                      src="https://www.google.com/maps?q=Ranchi,Jharkhand&output=embed"
                       loading="lazy"></iframe>
             </div>
           </div>
@@ -1364,8 +1410,8 @@
               <input class="input" id="reg-phone" type="tel" placeholder="98765 43210">
             </div>
             <div class="grid gap-2">
-              <label class="label" for="reg-village">Village</label>
-              <input class="input" id="reg-village" placeholder="Ozar, Nashik">
+              <label class="label" for="reg-village">Village (optional)</label>
+              <input class="input" id="reg-village" placeholder="Ormanjhi, Ranchi">
             </div>
             <button class="btn btn-primary" onclick="App.toast('Account created (demo)', 'success')">Create account</button>
           </div>
@@ -1467,18 +1513,18 @@
 
   function updateTitle(hash) {
     const titles = {
-      "#/": "AgriSense AI — AI Crop Recommendation for Farmers",
-      "#/dashboard": "Farmer Dashboard — AgriSense AI",
-      "#/recommend": "AI Crop Recommendation — AgriSense AI",
-      "#/diagnose": "Plant Disease Detection — AgriSense AI",
-      "#/weather": "Farm Weather & Advisories — AgriSense AI",
-      "#/market": "Mandi Market Prices & Trends — AgriSense AI",
-      "#/schemes": "Government Schemes for Farmers — AgriSense AI",
-      "#/about": "About AgriSense AI — Our Mission for Farmers",
-      "#/contact": "Contact & Support — AgriSense AI",
-      "#/login": "Farmer Login — AgriSense AI",
+      "#/": "Crop Sathi — AI Crop Recommendation for Farmers",
+      "#/dashboard": "Farmer Dashboard — Crop Sathi",
+      "#/recommend": "AI Crop Recommendation — Crop Sathi",
+      "#/diagnose": "Plant Disease Detection — Crop Sathi",
+      "#/weather": "Farm Weather & Advisories — Crop Sathi",
+      "#/market": "Mandi Market Prices & Trends — Crop Sathi",
+      "#/schemes": "Government Schemes for Farmers — Crop Sathi",
+      "#/about": "About Crop Sathi — Our Mission for Farmers",
+      "#/contact": "Contact & Support — Crop Sathi",
+      "#/login": "Farmer Login — Crop Sathi",
     };
-    document.title = titles[hash] || "AgriSense AI";
+    document.title = titles[hash] || "Crop Sathi";
   }
 
   // ============================================================
@@ -1567,14 +1613,16 @@
       recResult = null;
       render();
 
+      const getNum = (k, f) => recValues[k] !== undefined && recValues[k] !== "" ? parseFloat(recValues[k]) : f;
+
       const payload = {
-        N: parseInt(recValues.n) || 0,
-        P: parseInt(recValues.p) || 0,
-        K: parseInt(recValues.k) || 0,
-        ph: parseFloat(recValues.ph) || 6.5,
-        rainfall: parseFloat(recValues.rainfall) || 200,
-        temperature: recValues.temp ? parseFloat(recValues.temp) : null,
-        humidity: recValues.humidity ? parseFloat(recValues.humidity) : null,
+        N: getNum("n", 280),
+        P: getNum("p", 42),
+        K: getNum("k", 190),
+        ph: getNum("ph", 6.4),
+        rainfall: getNum("rainfall", 180),
+        temperature: recValues.temp !== undefined && recValues.temp !== "" ? parseFloat(recValues.temp) : null,
+        humidity: recValues.humidity !== undefined && recValues.humidity !== "" ? parseFloat(recValues.humidity) : null,
       };
 
       // Step 1: try to reach the server at all. Only a genuine network
@@ -1651,10 +1699,10 @@
     },
 
     useGPS() {
-      recValues.state = "Maharashtra";
-      recValues.district = "Nashik";
-      recValues.village = "Ozar";
-      showToast("Location detected: Ozar, Nashik", "success");
+      recValues.state = "Jharkhand";
+      recValues.district = "Ranchi";
+      recValues.village = "Ormanjhi";
+      showToast("Location detected: Ormanjhi, Ranchi", "success");
       render();
     },
 

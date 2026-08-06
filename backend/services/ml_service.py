@@ -18,6 +18,7 @@ from core.config import (
     DEFAULT_HUMIDITY_PCT,
     DEFAULT_TEMPERATURE_C,
     DISEASE_MODEL_DIR,
+    DISEASE_LABEL_MAPPING_PATH
 )
 from services.weather_service import fetch_weather
 
@@ -57,6 +58,18 @@ def load_models():
     if CROP_LABEL_MAPPING_PATH.exists():
         with open(CROP_LABEL_MAPPING_PATH) as f:
             _crop_label_mapping = {int(k): v for k, v in json.load(f).items()}
+
+    global DISEASE_CLASSES
+    if DISEASE_LABEL_MAPPING_PATH.exists():
+        with open(DISEASE_LABEL_MAPPING_PATH) as f:
+            mapping = json.load(f)
+            # Reconstruct list assuming keys are "0", "1", ...
+            max_idx = max(int(k) for k in mapping.keys())
+            new_classes = ["Unknown"] * (max_idx + 1)
+            for k, v in mapping.items():
+                new_classes[int(k)] = v
+            DISEASE_CLASSES = new_classes
+            print(f"Loaded {len(DISEASE_CLASSES)} disease classes from {DISEASE_LABEL_MAPPING_PATH}")
 
     for name, path in DISEASE_MODEL_PATHS.items():
         if path.exists():

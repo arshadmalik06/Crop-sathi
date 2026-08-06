@@ -11,8 +11,10 @@ ML_MODELS_DIR = BASE_DIR / "ml_models"
 CROP_MODEL_PATH = ML_MODELS_DIR / "crop-recommendation" / "XGBoost.pkl"
 CROP_LABEL_MAPPING_PATH = ML_MODELS_DIR / "crop-recommendation" / "label_mapping.json"
 DISEASE_MODEL_DIR = ML_MODELS_DIR / "plant-disease"
+DISEASE_LABEL_MAPPING_PATH = DISEASE_MODEL_DIR / "disease_classes.json"
 
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY", "")
+DATAGOV_API_KEY = os.getenv("DATAGOV_API_KEY", "")
 
 # Fallback climate figures used when no lat/lon (offline) is provided.
 # Averages for Jharkhand's monsoon season (Jun-Oct), from IMD Ranchi normals.

@@ -7,9 +7,9 @@
 const API_BASE = "http://127.0.0.1:8000";
 const ENDPOINTS = {
   predictCrop: `${API_BASE}/predict-crop`,
-  analyzeDis:  `${API_BASE}/analyze-disease`,
-  sync:        `${API_BASE}/sync`,
-  health:      `${API_BASE}/health`,
+  analyzeDis: `${API_BASE}/analyze-disease`,
+  sync: `${API_BASE}/sync`,
+  health: `${API_BASE}/health`,
 };
 
 // ── Fallback crop cards ──
@@ -139,14 +139,27 @@ const forecast = [
 ];
 
 // ── Market Prices ──
-const marketPrices = [
-  { crop: "Rice (Paddy)", market: "Nashik Mandi", price: 2320, prev: 2280, unit: "₹/quintal" },
-  { crop: "Maize", market: "Pune APMC", price: 2145, prev: 2190, unit: "₹/quintal" },
-  { crop: "Groundnut", market: "Rajkot Mandi", price: 6420, prev: 6310, unit: "₹/quintal" },
-  { crop: "Cotton", market: "Akola Mandi", price: 7480, prev: 7395, unit: "₹/quintal" },
-  { crop: "Wheat", market: "Indore Mandi", price: 2610, prev: 2600, unit: "₹/quintal" },
-  { crop: "Soybean", market: "Latur Mandi", price: 4890, prev: 4960, unit: "₹/quintal" },
-];
+let marketPrices = [];
+
+async function fetchMarketPrices() {
+  try {
+    const res = await fetch(`${API_BASE}/market/prices`);
+    if (!res.ok) throw new Error("Failed to fetch market prices");
+    const json = await res.json();
+    if (json.success && json.data) {
+      marketPrices = json.data;
+      return true;
+    }
+  } catch (err) {
+    console.error("Market prices fetch error:", err);
+    // Use fallback if fetch fails
+    marketPrices = [
+      { crop: "Rice (Paddy)", market: "Ranchi Mandi", price: 2320, prev: 2280, unit: "₹/quintal" },
+      { crop: "Maize", market: "Dhanbad APMC", price: 2145, prev: 2190, unit: "₹/quintal" }
+    ];
+  }
+  return false;
+}
 
 // ── Price Trend (5 weeks) ──
 const priceTrend = [
@@ -158,38 +171,43 @@ const priceTrend = [
 ];
 
 // ── Government Schemes ──
-const schemes = [
-  {
-    name: "PM-KISAN",
-    benefit: "₹6,000 per year direct income support in three instalments.",
-    eligibility: "All landholding farmer families with cultivable land records.",
-    link: "https://pmkisan.gov.in",
-  },
-  {
-    name: "Pradhan Mantri Fasal Bima Yojana",
-    benefit: "Crop insurance against drought, flood, pest and yield loss.",
-    eligibility: "Farmers growing notified crops in notified areas.",
-    link: "https://pmfby.gov.in",
-  },
-  {
-    name: "Soil Health Card",
-    benefit: "Free soil testing with nutrient-wise fertilizer recommendations.",
-    eligibility: "All farmers, once every two years per holding.",
-    link: "https://soilhealth.dac.gov.in",
-  },
-  {
-    name: "Seed Subsidy Scheme",
-    benefit: "Up to 50% subsidy on certified high-yield seed varieties.",
-    eligibility: "Small and marginal farmers via state agriculture dept.",
-    link: "https://agriwelfare.gov.in",
-  },
-  {
-    name: "Kisan Credit Card",
-    benefit: "Short-term crop loans at 4% effective interest with timely repayment.",
-    eligibility: "Farmers, tenant farmers, oral lessees and SHGs.",
-    link: "https://www.myscheme.gov.in",
-  },
-];
+let schemes = [];
+
+async function fetchSchemes() {
+  try {
+    const res = await fetch(`${API_BASE}/schemes`);
+    if (!res.ok) throw new Error("Failed to fetch schemes");
+    const json = await res.json();
+    if (json.success && json.data) {
+      schemes = json.data;
+      return true;
+    }
+  } catch (err) {
+    console.error("Schemes fetch error:", err);
+    // Use fallback if fetch fails
+    schemes = [
+      {
+        name: "PM-KISAN",
+        benefit: "₹6,000 per year direct income support in three instalments.",
+        eligibility: "All landholding farmer families with cultivable land records.",
+        link: "https://pmkisan.gov.in",
+      },
+      {
+        name: "Pradhan Mantri Fasal Bima Yojana",
+        benefit: "Crop insurance against drought, flood, pest and yield loss.",
+        eligibility: "Farmers growing notified crops in notified areas.",
+        link: "https://pmfby.gov.in",
+      },
+      {
+        name: "Jharkhand Rajya Fasal Rahat Yojana",
+        benefit: "Financial assistance in case of crop loss due to natural calamities.",
+        eligibility: "All landholding and landless farmers in Jharkhand.",
+        link: "https://jrfry.jharkhand.gov.in/",
+      }
+    ];
+  }
+  return false;
+}
 
 // ── Recommendation History ──
 const recommendHistory = [
@@ -202,7 +220,7 @@ const recommendHistory = [
 // ── Notifications ──
 const notifications = [
   { title: "Heavy rain alert", body: "80 mm rainfall expected Wednesday. Avoid irrigation today.", tone: "warn" },
-  { title: "Market price up", body: "Paddy up ₹40/quintal at Nashik Mandi.", tone: "good" },
+  { title: "Market price up", body: "Paddy up ₹40/quintal at Ranchi Mandi.", tone: "good" },
   { title: "Pest advisory", body: "Stem borer activity reported in your district.", tone: "warn" },
   { title: "Government update", body: "PM-KISAN 19th instalment credited this week.", tone: "good" },
 ];
@@ -218,7 +236,7 @@ const fertilizers = [
 
 // ── FAQ ──
 const faqs = [
-  { q: "Is AgriSense AI free?", a: "Yes. The recommendation engine, weather and mandi prices are free for all farmers." },
+  { q: "Is Crop Sathi free?", a: "Yes. The recommendation engine, weather and mandi prices are free for all farmers." },
   { q: "Do I need a soil test?", a: "It helps accuracy, but you can start with your soil type and we use district averages." },
   { q: "Which languages are supported?", a: "English, Hindi, Tamil, Telugu, Marathi, Kannada, Bengali, Gujarati, Punjabi and Odia." },
   { q: "Does it work offline?", a: "Your last recommendation, weather advisory and schemes stay available without a network." },
@@ -332,7 +350,7 @@ async function getLastRecommendation() {
 function requestBackgroundSync() {
   if ("serviceWorker" in navigator && "SyncManager" in window) {
     navigator.serviceWorker.ready.then((reg) => {
-      reg.sync.register("crop-sathi-sync").catch(() => {});
+      reg.sync.register("crop-sathi-sync").catch(() => { });
     });
   }
 }

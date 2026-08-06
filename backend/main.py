@@ -11,6 +11,9 @@ from services import ml_service
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     ml_service.load_models()
+    import asyncio
+    from services import market_service
+    asyncio.create_task(market_service.start_periodic_market_fetcher())
     yield
 
 
@@ -30,10 +33,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from api.routes import crop, disease, sync, weather, market, schemes
+
 app.include_router(crop.router)
 app.include_router(disease.router)
 app.include_router(sync.router)
 app.include_router(weather.router)
+app.include_router(market.router)
+app.include_router(schemes.router)
 
 
 @app.get("/", tags=["Root"])
