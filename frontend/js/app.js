@@ -46,6 +46,32 @@
   let weatherLoading = false;
   let weatherError = null;
 
+  // ── Dashboard state (real IndexedDB history, not mock) ──
+  let dashboardHistory = null;   // null = not loaded yet, [] = loaded but empty
+  let dashboardLoading = false;
+
+  async function loadDashboardHistory() {
+    dashboardLoading = true;
+    try {
+      const all = await CropSathiDB.getAll("recommendations");
+      // Most recent first
+      dashboardHistory = all.slice().sort((a, b) => new Date(b.saved_at) - new Date(a.saved_at));
+    } catch (err) {
+      console.warn("Failed to load recommendation history:", err);
+      dashboardHistory = [];
+    }
+    dashboardLoading = false;
+    render();
+  }
+
+  function formatDashDate(iso) {
+    try {
+      return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+    } catch {
+      return iso;
+    }
+  }
+
   // ============================================================
   //  TOAST SYSTEM
   // ============================================================
@@ -310,6 +336,10 @@
   // ============================================================
 
   function renderDashboard() {
+    const history = dashboardHistory || [];
+    const latest = history[0] || null;
+    const latestProfile = latest ? getCropProfile(latest.prediction) : null;
+
     const dashActions = [
       { hash: "#/recommend", icon: "sprout", label: "Recommend crop" },
       { hash: "#/weather", icon: "cloudSun", label: "Weather" },
@@ -340,16 +370,23 @@
         <!-- Latest recommendation -->
         <div class="card p-6 shadow-soft anim-fade-up delay-1">
           <h2 class="font-semibold">Latest recommendation</h2>
-          <div class="flex items-center gap-3 mt-4">
-            <span style="font-size:2.25rem">🌾</span>
-            <div>
-              <p class="text-lg font-semibold">Rice (Paddy)</p>
-              <p class="text-sm text-muted-foreground">12 Jul 2026</p>
+          ${latest ? `
+            <div class="flex items-center gap-3 mt-4">
+              <span style="font-size:2.25rem">${latestProfile.emoji}</span>
+              <div>
+                <p class="text-lg font-semibold">${latestProfile.name}</p>
+                <p class="text-sm text-muted-foreground">${formatDashDate(latest.saved_at)}</p>
+              </div>
             </div>
-          </div>
-          <p class="mt-4 text-sm text-muted-foreground">Confidence</p>
-          <div class="progress mt-2"><div class="progress-bar" style="width:94%"></div></div>
-          <p class="mt-2 text-sm font-medium">94% match</p>
+            <p class="mt-4 text-sm text-muted-foreground">Confidence</p>
+            <div class="progress mt-2"><div class="progress-bar" style="width:${Math.round((latest.confidence || 0) * 100)}%"></div></div>
+            <p class="mt-2 text-sm font-medium">${Math.round((latest.confidence || 0) * 100)}% match</p>
+          ` : dashboardLoading ? `
+            <div class="skeleton mt-4" style="height:6rem"></div>
+          ` : `
+            <p class="mt-4 text-sm text-muted-foreground">No recommendations yet.</p>
+            <a href="#/recommend" class="btn btn-outline btn-sm mt-4">${Icons.sprout(16)} Get your first recommendation</a>
+          `}
         </div>
 
         <!-- Farm summary -->
@@ -401,22 +438,31 @@
         <div class="card p-6 shadow-soft anim-fade-up" style="grid-column:span 3">
           <h2 class="font-semibold">Previous recommendations</h2>
           <div class="overflow-x-auto mt-4">
-            <table class="table">
-              <thead><tr>
-                <th>Date</th><th>Crop</th><th>Confidence</th><th>Weather</th><th>Yield</th>
-              </tr></thead>
-              <tbody>
-                ${recommendHistory.map(h => `
-                  <tr>
-                    <td>${h.date}</td>
-                    <td class="font-medium">${h.crop}</td>
-                    <td>${h.confidence}%</td>
-                    <td>${h.weather}</td>
-                    <td>${h.yield}</td>
-                  </tr>
-                `).join("")}
-              </tbody>
-            </table>
+            ${history.length ? `
+              <table class="table">
+                <thead><tr>
+                  <th>Date</th><th>Crop</th><th>Confidence</th><th>Soil pH used</th><th>Rainfall used</th>
+                </tr></thead>
+                <tbody>
+                  ${history.map(h => {
+      const profile = getCropProfile(h.prediction);
+      const inputs = h.user_inputs || h.inputs || {};
+      return `
+                    <tr>
+                      <td>${formatDashDate(h.saved_at)}</td>
+                      <td class="font-medium">${profile.emoji} ${profile.name}</td>
+                      <td>${Math.round((h.confidence || 0) * 100)}%</td>
+                      <td>${inputs.ph ?? "—"}</td>
+                      <td>${inputs.rainfall ?? "—"} mm</td>
+                    </tr>`;
+    }).join("")}
+                </tbody>
+              </table>
+            ` : dashboardLoading ? `
+              <div class="skeleton" style="height:8rem"></div>
+            ` : `
+              <p class="text-sm text-muted-foreground">No recommendations saved yet. Results are saved automatically each time you use Crop Recommendation.</p>
+            `}
           </div>
         </div>
       </div>
@@ -431,7 +477,7 @@
   let recValues = {};
   let recPrefs = ["Maximum profit"];
   let recLoading = false;
-  let recResult = false;
+  let recResult = null; // { best, alternatives, source: "live" | "fallback" }
 
   const STEP_TITLES = ["Farmer details", "Farm details", "Soil details", "Weather", "Preference"];
   const STEP_FIELDS = {
@@ -452,20 +498,20 @@
     ],
     2: [
       { name: "soil", label: "Soil type", placeholder: "Clay loam" },
-      { name: "ph", label: "pH value", placeholder: "6.4", type: "number" },
-      { name: "n", label: "Nitrogen (kg/ha)", placeholder: "280", type: "number" },
-      { name: "p", label: "Phosphorus (kg/ha)", placeholder: "42", type: "number" },
-      { name: "k", label: "Potassium (kg/ha)", placeholder: "190", type: "number" },
-      { name: "moisture", label: "Moisture (%)", placeholder: "24", type: "number" },
-      { name: "carbon", label: "Organic carbon (%)", placeholder: "0.72", type: "number" },
+      { name: "ph", label: "pH value", placeholder: "6.4", type: "number", min: 0, max: 14 },
+      { name: "n", label: "Nitrogen (kg/ha)", placeholder: "280", type: "number", min: 0, max: 1000 },
+      { name: "p", label: "Phosphorus (kg/ha)", placeholder: "42", type: "number", min: 0, max: 1000 },
+      { name: "k", label: "Potassium (kg/ha)", placeholder: "190", type: "number", min: 0, max: 1000 },
+      { name: "moisture", label: "Moisture (%)", placeholder: "24", type: "number", min: 0, max: 100 },
+      { name: "carbon", label: "Organic carbon (%)", placeholder: "0.72", type: "number", min: 0, max: 100 },
       { name: "micro", label: "Micronutrients (optional)", placeholder: "Zn, Fe" },
     ],
     3: [
-      { name: "temp", label: "Temperature (°C)", placeholder: "29", type: "number" },
-      { name: "humidity", label: "Humidity (%)", placeholder: "68", type: "number" },
-      { name: "rainfall", label: "Rainfall (mm)", placeholder: "180", type: "number" },
-      { name: "wind", label: "Wind speed (km/h)", placeholder: "12", type: "number" },
-      { name: "sun", label: "Sunlight hours", placeholder: "8.4", type: "number" },
+      { name: "temp", label: "Temperature (°C)", placeholder: "29", type: "number", min: -10, max: 60 },
+      { name: "humidity", label: "Humidity (%)", placeholder: "68", type: "number", min: 0, max: 100 },
+      { name: "rainfall", label: "Rainfall (mm)", placeholder: "180", type: "number", min: 0, max: 5000 },
+      { name: "wind", label: "Wind speed (km/h)", placeholder: "12", type: "number", min: 0, max: 300 },
+      { name: "sun", label: "Sunlight hours", placeholder: "8.4", type: "number", min: 0, max: 24 },
     ],
   };
 
@@ -475,8 +521,8 @@
   ];
 
   function renderRecommend() {
-    const best = crops[0];
-    const alts = crops.slice(1);
+    const best = recResult ? recResult.best : null;
+    const alts = recResult ? recResult.alternatives : [];
 
     return `
     ${pageHeader("Crop recommendation", "Five short steps — takes about two minutes")}
@@ -504,6 +550,7 @@
               <div class="grid gap-2">
                 <label class="label" for="rec-${f.name}">${f.label}</label>
                 <input class="input" id="rec-${f.name}" type="${f.type || 'text'}"
+                       ${f.min !== undefined ? `min="${f.min}"` : ''} ${f.max !== undefined ? `max="${f.max}"` : ''}
                        placeholder="${f.placeholder}" value="${recValues[f.name] || ''}"
                        onchange="App.setRecValue('${f.name}', this.value)" oninput="App.setRecValue('${f.name}', this.value)">
               </div>
@@ -561,12 +608,21 @@
       ${recResult ? `
         <div class="mt-10 grid gap-6 anim-fade-up">
 
+          ${recResult.source === "fallback" ? `
+            <div class="error-card anim-fade-up">
+              <div class="error-card-icon">${Icons.alertTriangle(24)}</div>
+              <p class="mt-3 font-semibold">Showing a sample recommendation</p>
+              <p class="mt-1 text-sm text-muted-foreground">The live prediction server could not be reached, so this is cached sample data, not your actual result. Check your connection and try again.</p>
+              <button class="btn btn-outline btn-sm mt-4" onclick="App.recSubmit()">${Icons.refreshCw(14)} Retry live prediction</button>
+            </div>
+          ` : ''}
+
           <!-- Best crop card -->
           <div class="card gradient-hero overflow-hidden p-8 text-primary-foreground shadow-lift" style="border-radius:var(--radius-3xl)">
             <div class="flex flex-wrap items-center gap-6">
               <span class="result-emoji">${best.emoji}</span>
               <div class="min-w-0">
-                <p class="text-sm" style="opacity:.8">Recommended crop</p>
+                <p class="text-sm" style="opacity:.8">${recResult.source === "fallback" ? "Sample recommendation" : "Recommended crop"}</p>
                 <h2 class="text-3xl font-semibold">${best.name}</h2>
                 <p class="text-sm" style="font-style:italic;opacity:.75">${best.scientific}</p>
                 <div class="flex flex-wrap gap-2 mt-3">
@@ -583,7 +639,7 @@
                 </ul>
               </div>
               <div class="result-meta-grid">
-                ${[["Duration", best.duration], ["Expected yield", best.yield], ["Water need", best.water], ["Profit", best.profit],
+                ${[["Duration", best.duration], ["Ideal pH range", best.idealPh], ["Water need", best.water], ["Profit", best.profit],
         ["Investment", best.investment], ["Difficulty", best.difficulty], ["Best sowing", best.sowing], ["Harvest", best.harvest]].map(([k, v]) => `
                   <div class="result-meta-item glass-dark">
                     <dt>${k}</dt><dd>${v}</dd>
@@ -614,7 +670,8 @@
 
           <!-- Fertilizer table -->
           <div class="card p-6 shadow-soft" style="border-radius:var(--radius-3xl)">
-            <h3 class="text-xl font-semibold">Fertilizer recommendation</h3>
+            <h3 class="text-xl font-semibold">General fertilizer guidance</h3>
+            <p class="mt-1 text-sm text-muted-foreground">Typical inputs for most field crops. Get a soil test for a dose tailored to ${best.name}.</p>
             <div class="overflow-x-auto mt-4">
               <table class="table">
                 <thead><tr>
@@ -1394,6 +1451,11 @@
       fetchLiveWeather();
     }
 
+    // Load real recommendation history from IndexedDB on the dashboard
+    if (hash === "#/dashboard" && dashboardHistory === null && !dashboardLoading) {
+      loadDashboardHistory();
+    }
+
     // Init drag-drop if on diagnose page
     if (hash === "#/diagnose") {
       requestAnimationFrame(initUploadZone);
@@ -1502,7 +1564,7 @@
 
     async recSubmit() {
       recLoading = true;
-      recResult = false;
+      recResult = null;
       render();
 
       const payload = {
@@ -1515,59 +1577,77 @@
         humidity: recValues.humidity ? parseFloat(recValues.humidity) : null,
       };
 
+      // Step 1: try to reach the server at all. Only a genuine network
+      // failure here means the API is actually unavailable.
+      let resp;
       try {
-        const resp = await fetch(ENDPOINTS.predictCrop, {
+        resp = await fetch(ENDPOINTS.predictCrop, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
-
-        if (!resp.ok) throw new Error(`Server error: ${resp.status}`);
-        const data = await resp.json();
-
-        if (data.success) {
-          // Map API response to the crop data structure for display
-          const predicted = data.prediction;
-          const matchedCrop = crops.find(c =>
-            c.name.toLowerCase().includes(predicted.toLowerCase()) ||
-            predicted.toLowerCase().includes(c.id)
-          );
-
-          if (matchedCrop) {
-            // Move matched crop to first position for display
-            const idx = crops.indexOf(matchedCrop);
-            if (idx > 0) {
-              crops.unshift(crops.splice(idx, 1)[0]);
-            }
-          }
-
-          // Save to IndexedDB for history
-          saveRecommendation(data, payload).catch(() => { });
-
-          recLoading = false;
-          recResult = true;
-          showToast(`Recommendation ready — ${data.prediction} (top 3: ${data.top_3.join(", ")})`, "success");
-          render();
-        } else {
-          throw new Error(data.error || "Prediction failed");
-        }
-      } catch (err) {
-        console.warn("Crop prediction API failed:", err);
-
+      } catch (networkErr) {
+        console.warn("Crop prediction — network error (server unreachable):", networkErr);
+        recLoading = false;
         if (!navigator.onLine) {
-          // Queue for offline sync
           await queueSyncAction("crop_recommendation", payload);
-          recLoading = false;
           showToast("You're offline. Request queued and will sync when connected.", "info");
-          render();
         } else {
-          // Fallback to mock data
-          recLoading = false;
-          recResult = true;
-          showToast(`API unavailable — showing sample recommendation. (${err.message})`, "error");
-          render();
+          recResult = { source: "fallback", best: FALLBACK_CROPS[0], alternatives: FALLBACK_CROPS.slice(1) };
+          showToast(`Could not reach the prediction server — showing sample data. (${networkErr.message})`, "error");
         }
+        render();
+        return;
       }
+
+      // Step 2: the server responded. A 422 means the input itself was
+      // rejected (e.g. a value out of range) — this is a fixable form
+      // error, not a server-availability problem, so show the real reason.
+      if (resp.status === 422) {
+        let detailMsg = "Please check your soil and weather values.";
+        try {
+          const errBody = await resp.json();
+          if (Array.isArray(errBody.detail)) {
+            detailMsg = errBody.detail
+              .map(d => `${(d.loc || []).slice(-1)[0]} — ${d.msg}`)
+              .join("; ");
+          }
+        } catch { /* keep default message */ }
+        recLoading = false;
+        showToast(`Please fix your input: ${detailMsg}`, "error");
+        render();
+        return;
+      }
+
+      if (!resp.ok) {
+        console.warn("Crop prediction — server error:", resp.status);
+        recLoading = false;
+        recResult = { source: "fallback", best: FALLBACK_CROPS[0], alternatives: FALLBACK_CROPS.slice(1) };
+        showToast(`Server error (${resp.status}) — showing sample data.`, "error");
+        render();
+        return;
+      }
+
+      const data = await resp.json();
+
+      if (data.success) {
+        // Build the display result entirely from the live API response —
+        // every crop the model can predict (22, not just 4) is covered
+        // by buildRecResultForDisplay() below, and confidence/suitability/
+        // reasons are all computed from real numbers, not hardcoded.
+        recResult = buildRecResultForDisplay(data, payload);
+
+        // Save to IndexedDB for history
+        saveRecommendation(data, payload).catch(() => { });
+
+        recLoading = false;
+        showToast(`Recommendation ready — ${data.prediction} (${Math.round(data.confidence * 100)}% confidence)`, "success");
+      } else {
+        recLoading = false;
+        recResult = { source: "fallback", best: FALLBACK_CROPS[0], alternatives: FALLBACK_CROPS.slice(1) };
+        showToast(`Prediction failed — ${data.error || "unknown error"}. Showing sample data.`, "error");
+      }
+      render();
     },
 
     useGPS() {

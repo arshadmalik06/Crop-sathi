@@ -89,16 +89,22 @@ def predict_crop(
         probs = _crop_model.predict_proba(features)[0]
         top_idx = np.argsort(probs)[::-1][:3]
         top_3 = [_crop_label_mapping.get(int(i), str(i)) for i in top_idx]
+        top_3_confidence = [round(float(probs[i]), 4) for i in top_idx]
         prediction = top_3[0]
+        confidence = top_3_confidence[0]
     else:
         pred_idx = int(_crop_model.predict(features)[0])
         prediction = _crop_label_mapping.get(pred_idx, str(pred_idx))
         top_3 = [prediction]
+        top_3_confidence = [1.0]
+        confidence = 1.0
 
     return {
         "success": True,
         "prediction": prediction,
+        "confidence": confidence,
         "top_3": top_3,
+        "top_3_confidence": top_3_confidence,
         "inputs": {
             "N": n, "P": p, "K": k, "ph": ph, "rainfall": rainfall,
             "temperature": temperature, "humidity": humidity,
