@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.routes import crop, disease, sync
+from api.routes import crop, disease, sync, weather
 from core.config import CORS_ORIGINS
 from services import ml_service
 
@@ -33,6 +33,7 @@ app.add_middleware(
 app.include_router(crop.router)
 app.include_router(disease.router)
 app.include_router(sync.router)
+app.include_router(weather.router)
 
 
 @app.get("/", tags=["Root"])
