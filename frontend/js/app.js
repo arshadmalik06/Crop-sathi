@@ -320,7 +320,7 @@
     ];
 
     return `
-    ${pageHeader("Namaste, Ramesh 👋", "Kharif season · Nashik, Maharashtra · 3.2 acres")}
+    ${pageHeader("Namaste, Arshad", "Kharif season · Nashik, Maharashtra · 3.2 acres")}
     <div class="container py-10">
       <div class="grid" style="grid-template-columns: repeat(3, 1fr)">
 
@@ -356,7 +356,7 @@
         <div class="card p-6 shadow-soft anim-fade-up delay-2">
           <h2 class="font-semibold">Farm summary</h2>
           <dl class="mt-4 grid gap-3 text-sm">
-            ${[["Farm size","3.2 acres"],["Soil type","Clay loam"],["Irrigation","Drip"],["Previous crop","Groundnut"],["Organic","Partial"]].map(([k,v]) => `
+            ${[["Farm size", "3.2 acres"], ["Soil type", "Clay loam"], ["Irrigation", "Drip"], ["Previous crop", "Groundnut"], ["Organic", "Partial"]].map(([k, v]) => `
               <div class="flex justify-between gap-4">
                 <dt class="text-muted-foreground">${k}</dt>
                 <dd class="font-medium">${v}</dd>
@@ -583,8 +583,8 @@
                 </ul>
               </div>
               <div class="result-meta-grid">
-                ${[["Duration",best.duration],["Expected yield",best.yield],["Water need",best.water],["Profit",best.profit],
-                   ["Investment",best.investment],["Difficulty",best.difficulty],["Best sowing",best.sowing],["Harvest",best.harvest]].map(([k,v]) => `
+                ${[["Duration", best.duration], ["Expected yield", best.yield], ["Water need", best.water], ["Profit", best.profit],
+        ["Investment", best.investment], ["Difficulty", best.difficulty], ["Best sowing", best.sowing], ["Harvest", best.harvest]].map(([k, v]) => `
                   <div class="result-meta-item glass-dark">
                     <dt>${k}</dt><dd>${v}</dd>
                   </div>
@@ -823,9 +823,9 @@
 
       <div class="grid mt-6" style="grid-template-columns:repeat(3,1fr)">
         ${filtered.length ? filtered.map(r => {
-          const up = r.price >= r.prev;
-          const delta = Math.abs(r.price - r.prev);
-          return `
+      const up = r.price >= r.prev;
+      const delta = Math.abs(r.price - r.prev);
+      return `
             <div class="card card-lift p-6 shadow-soft anim-fade-up" style="border-radius:var(--radius-3xl)">
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
@@ -839,7 +839,7 @@
               <p class="mt-4 text-3xl font-semibold">₹${r.price.toLocaleString("en-IN")}</p>
               <p class="text-xs text-muted-foreground">${r.unit} · yesterday ₹${r.prev.toLocaleString("en-IN")}</p>
             </div>`;
-        }).join("") : '<p class="text-sm text-muted-foreground">No markets matched your search.</p>'}
+    }).join("") : '<p class="text-sm text-muted-foreground">No markets matched your search.</p>'}
       </div>
 
       <div class="card mt-10 p-6 shadow-soft anim-fade-up" style="border-radius:var(--radius-3xl)">
@@ -1542,7 +1542,7 @@
           }
 
           // Save to IndexedDB for history
-          saveRecommendation(data, payload).catch(() => {});
+          saveRecommendation(data, payload).catch(() => { });
 
           recLoading = false;
           recResult = true;
