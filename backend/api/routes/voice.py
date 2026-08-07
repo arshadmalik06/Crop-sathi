@@ -84,16 +84,27 @@ async def listen(session_id: str = Form(...), audio: UploadFile = File(...)):
     )
 
 
+DISEASE_MODELS = ("efficientnet_b4", "resnet50", "resnet9")
+
+
 @router.post("/photo", response_model=VoiceReply)
 async def photo(
     session_id: str = Form(...),
     file: UploadFile = File(...),
-    model: str = Form("resnet50"),
+    model: str = Form("efficientnet_b4"),
 ):
-    """Submit a leaf photo while the agent is waiting for one."""
+    """
+    Submit a leaf photo while the agent is waiting for one.
+
+    Defaults to the same model ml_service prefers; it falls back on its own
+    when that one is not loaded, so asking for it is safe either way.
+    """
     session = _require_session(session_id)
-    if model not in ("resnet9", "resnet50"):
-        raise HTTPException(status_code=400, detail="model must be 'resnet9' or 'resnet50'")
+    if model not in DISEASE_MODELS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"model must be one of {', '.join(DISEASE_MODELS)}",
+        )
 
     reply = dialogue.handle_photo(session, await file.read(), model=model)
     return VoiceReply(success=True, session_id=session.session_id, **reply.to_dict())

@@ -12,6 +12,7 @@ specific prompt, and after MAX_RETRIES hands off to the touch UI rather than
 accepting a low-confidence guess.
 """
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Optional
@@ -397,7 +398,28 @@ def _handle_await_photo(session: Session, utterance: str) -> Reply:
     return Reply(text, Action.CAPTURE_PHOTO, session.state, session.slots_snapshot())
 
 
-def handle_photo(session: Session, image_bytes: bytes, model: str = "resnet50") -> Reply:
+def _diagnosis_is_speakable(result: dict[str, Any]) -> bool:
+    """
+    Whether a diagnosis carries a real label rather than a bare class index.
+
+    ml_service builds DISEASE_CLASSES from disease_classes.json, which is
+    gitignored and therefore absent on a fresh clone. When it is missing the
+    list is empty and predictions come back as "class_19" / "Unknown", which
+    must never be read out as if it named a plant or a disease.
+    """
+    label = str(result.get("predicted_class") or "")
+    plant = str(result.get("plant_name") or "").strip()
+    status = str(result.get("disease_status") or "").strip()
+
+    if not label or re.fullmatch(r"class[_ ]?\d+", label.strip(), re.IGNORECASE):
+        return False
+    if not plant or re.fullmatch(r"class[_ ]?\d+", plant, re.IGNORECASE):
+        return False
+    return status.lower() != "unknown"
+
+
+def handle_photo(session: Session, image_bytes: bytes,
+                 model: str = "efficientnet_b4") -> Reply:
     """
     Diagnose a leaf photo.
 
@@ -421,7 +443,7 @@ def handle_photo(session: Session, image_bytes: bytes, model: str = "resnet50") 
     confidence = float(result.get("confidence") or 0.0)
     session.state = State.ASK_ANYTHING_ELSE
 
-    if confidence < DISEASE_CONFIDENCE_FLOOR:
+    if confidence < DISEASE_CONFIDENCE_FLOOR or not _diagnosis_is_speakable(result):
         text = _say(session, "disease_uncertain")
     else:
         plant = phrasebook.plant_name(result.get("plant_name", ""), session.lang)

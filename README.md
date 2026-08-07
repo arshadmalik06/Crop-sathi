@@ -128,21 +128,26 @@ speaks their district and taps their village.
 | `POST /voice/photo` | Submit a leaf photo while the agent is waiting for one |
 | `POST /voice/speak` | Synthesise a line to WAV (204 when the client should speak it) |
 
-### Known issue: the disease models
+### How the voice agent guards the disease path
 
 The voice agent will not state a diagnosis below 75% confidence, and says so
 plainly instead. That floor is deliberately stricter than the `/analyze-disease`
-default because the disease models are not currently trustworthy:
+default, and it refuses on two separate grounds.
 
-`scripts/train_disease.py` trains ResNet50 on **224×224 centre crops with
-ImageNet normalisation**, but `services/ml_service.py` serves **256×256 with a
-plain `/255.0` and no normalisation**, and `scripts/finetune_disease_model.py`
-uses a third convention. A model fed an un-normalised tensor it was not trained
-on produces confident nonsense — on a photograph of a field, with no leaf in it
-at all, the current model returns "Bell Pepper, Healthy" at 66% and the API's own
-`is_confident` flag reports `true`.
+**Low confidence.** The serving preprocessing used to disagree with the training
+transforms, which makes a model produce confident nonsense — on a photograph of
+a field with no leaf in it, it returned "Bell Pepper, Healthy" at 66% while the
+API's own `is_confident` flag reported `true`. `services/ml_service.py` now
+applies ImageNet normalisation and the per-architecture input size, which fixes
+the mismatch; the floor stays because a wrongly sprayed field is worse than a
+retaken photo.
 
-`disease_classes.json` is also absent, so `DISEASE_CLASSES` silently falls back
-to a hardcoded list whose label order has not been verified against the
-checkpoint. Both need fixing before the disease path can be trusted; the crop
-path is unaffected.
+**Unusable labels.** `DISEASE_CLASSES` is built from `disease_classes.json`,
+which is gitignored and so absent on a fresh clone. When it is missing the list
+is empty and predictions come back as `class_19` / `Unknown`. The agent detects
+that and declines rather than announcing "Class 19" as a plant — see
+`_diagnosis_is_speakable()` in `voice/dialogue.py`. To get real diagnoses,
+place `disease_classes.json` in `backend/ml_models/plant-disease/` alongside the
+`.onnx` files.
+
+The crop path is unaffected by any of this.
