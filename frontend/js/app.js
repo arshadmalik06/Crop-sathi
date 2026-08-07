@@ -479,14 +479,61 @@
   let recLoading = false;
   let recResult = null; // { best, alternatives, source: "live" | "fallback" }
 
+  // ── Measured soil lookup (Soil Health Card, 12k Jharkhand villages) ──
+  // Picking a village pulls its real N/P/K/pH from the backend and pre-fills
+  // the soil step, so a farmer doesn't have to supply lab numbers by hand.
+  let soilDistricts = [];
+  let soilBlocks = [];
+  let soilVillages = [];
+  let soilProfile = null;      // the village profile currently applied
+  let soilLoading = false;     // a lookup request is in flight
+  let soilError = null;        // set when the soil API is unreachable
+  let soilDistrictsLoaded = false;
+
+  // Village and block names come from a government dataset and are injected
+  // into innerHTML, so escape them rather than trusting the source.
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, ch => (
+      { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]
+    ));
+  }
+  const escapeAttr = escapeHtml;
+
+  async function fetchSoilJSON(url) {
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.json();
+  }
+
+  async function loadSoilDistricts() {
+    soilDistrictsLoaded = true;
+    soilLoading = true;
+    soilError = null;
+    try {
+      const data = await fetchSoilJSON(ENDPOINTS.soilDistricts);
+      soilDistricts = data.districts || [];
+    } catch (err) {
+      console.warn("Soil districts unavailable:", err);
+      soilError = "Village soil data is unavailable — you can still enter values by hand.";
+    } finally {
+      soilLoading = false;
+      render();
+    }
+  }
+
+  // Clears everything downstream of whichever level the farmer just changed,
+  // so a stale block/village can never stay attached to a new district.
+  function resetSoilBelow(level) {
+    if (level <= 0) { recValues.block = ""; soilBlocks = []; }
+    if (level <= 1) { recValues.village = ""; recValues.villageCode = ""; soilVillages = []; }
+    soilProfile = null;
+  }
+
   const STEP_TITLES = ["Farmer details", "Farm details", "Soil details", "Weather", "Preference"];
   const STEP_FIELDS = {
     0: [
       { name: "name", label: "Full name", placeholder: "Ramesh Kumar" },
       { name: "phone", label: "Phone number", placeholder: "98765 43210", type: "tel" },
-      { name: "state", label: "State", placeholder: "Jharkhand" },
-      { name: "district", label: "District", placeholder: "Ranchi" },
-      { name: "village", label: "Village", placeholder: "Ormanjhi" },
     ],
     1: [
       { name: "size", label: "Farm size (acres)", placeholder: "3.2", type: "number" },
@@ -519,6 +566,85 @@
     "Maximum profit", "Low investment", "Short duration crop", "Organic farming",
     "High yield", "Cash crop", "Food crop", "Export crop",
   ];
+
+  function renderSoilLocationPicker() {
+    const district = recValues.district || "";
+    const block = recValues.block || "";
+    const villageCode = recValues.villageCode || "";
+
+    const opts = (items, selected, valueOf, labelOf) =>
+      items.map(it => {
+        const v = valueOf(it);
+        return `<option value="${escapeAttr(String(v))}" ${String(v) === String(selected) ? "selected" : ""}>${escapeHtml(labelOf(it))}</option>`;
+      }).join("");
+
+    return `
+      <div style="grid-column:1/-1" class="grid gap-2">
+        <label class="label">Farm location (Jharkhand)</label>
+        <p class="text-sm text-muted-foreground" style="margin-top:-.25rem">
+          Pick your village and we'll fill in your soil's nitrogen, phosphorus, potassium and pH
+          from Soil Health Card survey data — no lab report needed.
+        </p>
+        <div class="grid grid-3 sm-grid-1 gap-3 mt-1">
+          <select class="input" id="rec-district" onchange="App.selectDistrict(this.value)"
+                  ${soilDistricts.length ? "" : "disabled"}>
+            <option value="">${soilLoading && !soilDistricts.length ? "Loading districts…" : "Select district"}</option>
+            ${opts(soilDistricts, district, d => d, d => d)}
+          </select>
+
+          <select class="input" id="rec-block" onchange="App.selectBlock(this.value)"
+                  ${soilBlocks.length ? "" : "disabled"}>
+            <option value="">${district ? (soilBlocks.length ? "Select block" : "Loading blocks…") : "Select district first"}</option>
+            ${opts(soilBlocks, block, b => b, b => b)}
+          </select>
+
+          <select class="input" id="rec-village" onchange="App.selectVillage(this.value)"
+                  ${soilVillages.length ? "" : "disabled"}>
+            <option value="">${block ? (soilVillages.length ? "Select village" : "Loading villages…") : "Select block first"}</option>
+            ${opts(soilVillages, villageCode, v => v.village_code, v => v.village_name)}
+          </select>
+        </div>
+
+        ${soilError ? `
+          <p class="text-sm" style="color:var(--destructive)">${escapeHtml(soilError)}</p>
+        ` : ''}
+
+        <div class="mt-1">
+          <button class="btn btn-outline btn-sm" onclick="App.useGPS()">
+            ${Icons.mapPin(16)} Use GPS location
+          </button>
+        </div>
+
+        ${soilProfile ? `
+          <div class="card p-4 mt-2" style="border-radius:var(--radius-2xl);background:var(--muted)">
+            <p class="font-semibold text-sm">
+              ${Icons.check(14)} Soil auto-filled for ${escapeHtml(soilProfile.village_name)},
+              ${escapeHtml(soilProfile.block_name)}, ${escapeHtml(soilProfile.district_name)}
+            </p>
+            <div class="flex flex-wrap gap-2 mt-3">
+              <span class="badge badge-secondary">N ${soilProfile.N}</span>
+              <span class="badge badge-secondary">P ${soilProfile.P}</span>
+              <span class="badge badge-secondary">K ${soilProfile.K}</span>
+              <span class="badge badge-secondary">pH ${soilProfile.ph}</span>
+              ${soilProfile.organic_carbon != null
+                ? `<span class="badge badge-secondary">Organic carbon ${soilProfile.organic_carbon}%</span>` : ''}
+            </div>
+            <p class="text-sm text-muted-foreground mt-3">
+              Based on ${soilProfile.samples.toLocaleString()} soil samples from the
+              ${escapeHtml(soilProfile.year)} survey.
+              ${soilProfile.ph_acidic_pct != null && soilProfile.ph_acidic_pct >= 50
+                ? ` ${soilProfile.ph_acidic_pct}% of samples were acidic.` : ''}
+              ${soilProfile.deficient_micronutrients && soilProfile.deficient_micronutrients.length
+                ? ` Commonly deficient: ${soilProfile.deficient_micronutrients.map(escapeHtml).join(", ")}.` : ''}
+            </p>
+            <p class="text-sm text-muted-foreground mt-1">
+              You can still edit any of these on the Soil details step.
+            </p>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }
 
   function renderRecommend() {
     const best = recResult ? recResult.best : null;
@@ -555,12 +681,14 @@
                        onchange="App.setRecValue('${f.name}', this.value)" oninput="App.setRecValue('${f.name}', this.value)">
               </div>
             `).join("")}
-            ${recStep === 0 ? `
-              <div style="grid-column:1/-1">
-                <button class="btn btn-outline btn-sm" onclick="App.useGPS()">
-                  ${Icons.mapPin(16)} Use GPS location
-                </button>
-              </div>
+            ${recStep === 0 ? renderSoilLocationPicker() : ''}
+            ${recStep === 2 && soilProfile ? `
+              <p class="text-sm text-muted-foreground" style="grid-column:1/-1">
+                ${Icons.check(14)} N, P, K and pH were filled from
+                ${soilProfile.samples.toLocaleString()} Soil Health Card samples for
+                ${escapeHtml(soilProfile.village_name)}, ${escapeHtml(soilProfile.district_name)}
+                (${escapeHtml(soilProfile.year)}). Edit any value if you have your own soil test.
+              </p>
             ` : ''}
             ${recStep === 3 ? `
               <p class="text-sm text-muted-foreground" style="grid-column:1/-1">
@@ -1497,6 +1625,11 @@
       fetchLiveWeather();
     }
 
+    // Load the district list once, the first time the wizard is opened.
+    if (hash === "#/recommend" && !soilDistrictsLoaded && !isOffline) {
+      loadSoilDistricts();
+    }
+
     // Load real recommendation history from IndexedDB on the dashboard
     if (hash === "#/dashboard" && dashboardHistory === null && !dashboardLoading) {
       loadDashboardHistory();
@@ -1583,6 +1716,80 @@
     // Recommend page
     setRecValue(key, val) {
       recValues[key] = val;
+    },
+
+    // ── Village soil pickers ──
+    async selectDistrict(district) {
+      recValues.district = district;
+      resetSoilBelow(0);
+      render();
+      if (!district) return;
+      try {
+        const data = await fetchSoilJSON(ENDPOINTS.soilBlocks(district));
+        if (recValues.district !== district) return; // farmer moved on already
+        soilBlocks = data.blocks || [];
+        soilError = null;
+      } catch (err) {
+        console.warn("Soil blocks unavailable:", err);
+        soilError = "Could not load blocks for that district.";
+      }
+      render();
+    },
+
+    async selectBlock(block) {
+      recValues.block = block;
+      resetSoilBelow(1);
+      render();
+      if (!block) return;
+      const district = recValues.district;
+      try {
+        const data = await fetchSoilJSON(ENDPOINTS.soilVillages(district, block));
+        if (recValues.block !== block) return;
+        soilVillages = data.villages || [];
+        soilError = null;
+      } catch (err) {
+        console.warn("Soil villages unavailable:", err);
+        soilError = "Could not load villages for that block.";
+      }
+      render();
+    },
+
+    async selectVillage(villageCode) {
+      recValues.villageCode = villageCode;
+      soilProfile = null;
+      if (!villageCode) { render(); return; }
+
+      const chosen = soilVillages.find(v => String(v.village_code) === String(villageCode));
+      recValues.village = chosen ? chosen.village_name : "";
+
+      soilLoading = true;
+      render();
+      try {
+        const data = await fetchSoilJSON(ENDPOINTS.soilVillage(villageCode));
+        if (String(recValues.villageCode) !== String(villageCode)) return;
+        soilProfile = data.profile;
+
+        // Pre-fill the soil step from the measured values. These stay editable —
+        // setRecValue on the Soil details inputs overwrites them as normal.
+        recValues.n = String(soilProfile.N);
+        recValues.p = String(soilProfile.P);
+        recValues.k = String(soilProfile.K);
+        recValues.ph = String(soilProfile.ph);
+        if (soilProfile.organic_carbon != null) {
+          recValues.carbon = String(soilProfile.organic_carbon);
+        }
+        if (soilProfile.deficient_micronutrients && soilProfile.deficient_micronutrients.length) {
+          recValues.micro = soilProfile.deficient_micronutrients.join(", ");
+        }
+        soilError = null;
+        showToast(`Soil data loaded for ${soilProfile.village_name}`, "success");
+      } catch (err) {
+        console.warn("Soil profile unavailable:", err);
+        soilError = "Could not load soil data for that village — enter values by hand.";
+      } finally {
+        soilLoading = false;
+        render();
+      }
     },
 
     recNext() {
@@ -1698,12 +1905,15 @@
       render();
     },
 
-    useGPS() {
+    // Still a demo stub — it does not read real GPS, it jumps to a fixed
+    // Jharkhand location. It now drives the same district/block cascade as the
+    // dropdowns so the picker cannot end up half-selected; the farmer chooses
+    // the village, which is what actually loads the soil profile.
+    async useGPS() {
       recValues.state = "Jharkhand";
-      recValues.district = "Ranchi";
-      recValues.village = "Ormanjhi";
-      showToast("Location detected: Ormanjhi, Ranchi", "success");
-      render();
+      await this.selectDistrict("Ranchi");
+      await this.selectBlock("Ormanjhi");
+      showToast("Location set to Ormanjhi block, Ranchi — now pick your village.", "success");
     },
 
     // Market page

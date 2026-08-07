@@ -10,6 +10,12 @@ const ENDPOINTS = {
   analyzeDis: `${API_BASE}/analyze-disease`,
   sync: `${API_BASE}/sync`,
   health: `${API_BASE}/health`,
+  // Measured Jharkhand soil (Soil Health Card) used to pre-fill the form.
+  soilDistricts: `${API_BASE}/soil/districts`,
+  soilBlocks: (d) => `${API_BASE}/soil/districts/${encodeURIComponent(d)}/blocks`,
+  soilVillages: (d, b) =>
+    `${API_BASE}/soil/districts/${encodeURIComponent(d)}/blocks/${encodeURIComponent(b)}/villages`,
+  soilVillage: (code) => `${API_BASE}/soil/village/${encodeURIComponent(code)}`,
 };
 
 // ── Fallback crop cards ──

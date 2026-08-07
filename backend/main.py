@@ -5,12 +5,13 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.routes import crop, disease, sync, weather
 from core.config import CORS_ORIGINS
-from services import ml_service
+from services import ml_service, soil_service
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     ml_service.load_models()
+    soil_service.load_soil_profiles()
     import asyncio
     from services import market_service
     asyncio.create_task(market_service.start_periodic_market_fetcher())
@@ -33,10 +34,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from api.routes import crop, disease, sync, weather, market, schemes
+from api.routes import crop, disease, sync, weather, market, schemes, soil
 
 app.include_router(crop.router)
 app.include_router(disease.router)
+app.include_router(soil.router)
 app.include_router(sync.router)
 app.include_router(weather.router)
 app.include_router(market.router)

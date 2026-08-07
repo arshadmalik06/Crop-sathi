@@ -10,6 +10,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 ML_MODELS_DIR = BASE_DIR / "ml_models"
 CROP_MODEL_PATH = ML_MODELS_DIR / "crop-recommendation" / "XGBoost.pkl"
 CROP_LABEL_MAPPING_PATH = ML_MODELS_DIR / "crop-recommendation" / "label_mapping.json"
+# Per-village measured soil, built by scripts/build_soil_profiles.py from the
+# Jharkhand Soil Health Card nutrient export.
+SOIL_PROFILES_PATH = ML_MODELS_DIR / "crop-recommendation" / "jharkhand_soil_profiles.json"
 DISEASE_MODEL_DIR = ML_MODELS_DIR / "plant-disease"
 DISEASE_LABEL_MAPPING_PATH = DISEASE_MODEL_DIR / "disease_classes.json"
 
