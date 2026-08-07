@@ -5,7 +5,7 @@
    - Background sync with /sync endpoint
    ================================================================ */
 
-const CACHE_NAME = "crop-sathi-v2";
+const CACHE_NAME = "crop-sathi-v3";
 const API_HOST = "127.0.0.1:8000";
 
 const STATIC_ASSETS = [

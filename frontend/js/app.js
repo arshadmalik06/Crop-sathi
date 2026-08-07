@@ -1307,11 +1307,24 @@
 
       <!-- Supported plants info -->
       <div class="card p-6 shadow-soft mt-8 anim-fade-up" style="border-radius:var(--radius-3xl)">
-        <h3 class="text-lg font-semibold">Supported plants</h3>
-        <p class="mt-2 text-sm text-muted-foreground">Our AI model can detect diseases in:</p>
-        <div class="flex flex-wrap gap-2 mt-3">
-          ${["Apple", "Blueberry", "Cherry", "Corn", "Grape", "Orange", "Peach", "Pepper", "Potato", "Raspberry", "Soybean", "Squash", "Strawberry", "Tomato"].map(p => `
-            <span class="badge badge-outline">${p}</span>
+        <h3 class="text-lg font-semibold">Supported plants & Diseases</h3>
+        <p class="mt-2 text-sm text-muted-foreground">Our AI model can detect the following diseases in these crops:</p>
+        <div class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          ${[
+            { crop: "Rice (Paddy)", diseases: "Blast, Brown Spot, Sheath Blight, Bacterial Leaf Blight" },
+            { crop: "Maize (Corn)", diseases: "Common Rust, Northern Leaf Blight, Gray Leaf Spot" },
+            { crop: "Wheat", diseases: "Brown Rust, Yellow Rust, Loose Smut" },
+            { crop: "Potato", diseases: "Early Blight, Late Blight" },
+            { crop: "Tomato", diseases: "Early Blight, Late Blight, Bacterial Spot, Leaf Mold, Septoria Leaf Spot, Mosaic Virus, Yellow Leaf Curl, Target Spot" },
+            { crop: "Pepper (Bell)", diseases: "Bacterial Spot" },
+            { crop: "Soybean", diseases: "Various leaf diseases" },
+            { crop: "Squash", diseases: "Powdery Mildew" },
+            { crop: "Groundnut", diseases: "Leaf Spot, Rust" }
+          ].map(item => `
+            <div class="p-3 bg-secondary/30 rounded-xl border border-border/50">
+              <div class="font-medium text-sm text-foreground">${item.crop}</div>
+              <div class="text-xs text-muted-foreground mt-1">${item.diseases}</div>
+            </div>
           `).join("")}
         </div>
       </div>

@@ -13,3 +13,11 @@ venv.bak/
 # Raw Soil Health Card export (~48 MB). Re-downloadable from data.gov.in; the
 # derived village profiles it produces are committed instead.
 backend/scripts/data/raw/
+
+# Data and Models
+data/
+*.zip
+backend/scripts/data/
+backend/services/class_weights.json
+backend/services/disease_classes.json
+.vscode/

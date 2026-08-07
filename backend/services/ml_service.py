@@ -1,6 +1,7 @@
 """
-Loads the Jharkhand-fine-tuned crop model and the Crop-AI ResNet disease models
-once at startup, and exposes prediction functions consumed by the API routes.
+Loads the Jharkhand-fine-tuned crop model and disease detection models
+(EfficientNet-B4 Jharkhand-tuned + legacy ResNet fallbacks) once at startup,
+and exposes prediction functions consumed by the API routes.
 """
 
 import io
@@ -22,22 +23,28 @@ from core.config import (
 )
 from services.weather_service import fetch_weather
 
-DISEASE_CLASSES = [
-    'Apple___Apple_scab', 'Apple___Black_rot', 'Apple___Cedar_apple_rust', 'Apple___healthy',
-    'Blueberry___healthy', 'Cherry_(including_sour)___Powdery_mildew', 'Cherry_(including_sour)___healthy',
-    'Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot', 'Corn_(maize)___Common_rust_', 'Corn_(maize)___Northern_Leaf_Blight',
-    'Corn_(maize)___healthy', 'Grape___Black_rot', 'Grape___Esca_(Black_Measles)', 'Grape___Leaf_blight_(Isariopsis_Leaf_Spot)',
-    'Grape___healthy', 'Orange___Haunglongbing_(Citrus_greening)', 'Peach___Bacterial_spot', 'Peach___healthy',
-    'Pepper,_bell___Bacterial_spot', 'Pepper,_bell___healthy', 'Potato___Early_blight', 'Potato___Late_blight', 'Potato___healthy',
-    'Raspberry___healthy', 'Soybean___healthy', 'Squash___Powdery_mildew', 'Strawberry___Leaf_scorch', 'Strawberry___healthy',
-    'Tomato___Bacterial_spot', 'Tomato___Early_blight', 'Tomato___Late_blight', 'Tomato___Leaf_Mold',
-    'Tomato___Septoria_leaf_spot', 'Tomato___Spider_mites Two-spotted_spider_mite', 'Tomato___Target_Spot',
-    'Tomato___Tomato_Yellow_Leaf_Curl_Virus', 'Tomato___Tomato_mosaic_virus', 'Tomato___healthy',
-]
+# Will be populated from disease_classes.json at startup.
+# Falls back to empty list if no mapping file is found.
+DISEASE_CLASSES: list[str] = []
 
+# ImageNet normalisation constants (must match training transforms)
+_IMAGENET_MEAN = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(3, 1, 1)
+_IMAGENET_STD = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(3, 1, 1)
+
+# Model paths — the new Jharkhand EfficientNet-B4 is preferred;
+# legacy ResNet models are kept as fallbacks.
 DISEASE_MODEL_PATHS = {
-    "resnet9": DISEASE_MODEL_DIR / "resnet9_plant_disease.onnx",
+    "efficientnet_b4": DISEASE_MODEL_DIR / "efficientnet_b4_jharkhand.onnx",
     "resnet50": DISEASE_MODEL_DIR / "resnet50_plant_disease.onnx",
+    "resnet9": DISEASE_MODEL_DIR / "resnet9_plant_disease.onnx",
+}
+
+# Input resolution per model architecture.
+# EfficientNet-B4 was trained at 380; legacy ResNet models used 256.
+_MODEL_INPUT_SIZE: dict[str, int] = {
+    "efficientnet_b4": 380,
+    "resnet50": 256,
+    "resnet9": 256,
 }
 
 _crop_model = None
@@ -71,9 +78,24 @@ def load_models():
             DISEASE_CLASSES = new_classes
             print(f"Loaded {len(DISEASE_CLASSES)} disease classes from {DISEASE_LABEL_MAPPING_PATH}")
 
+    # Load model metadata (written by export_onnx.py) to detect input size
+    metadata_path = DISEASE_MODEL_DIR / "model_metadata.json"
+    if metadata_path.exists():
+        with open(metadata_path) as f:
+            metadata = json.load(f)
+            model_key = metadata.get("model_name", "efficientnet_b4")
+            if "img_size" in metadata:
+                _MODEL_INPUT_SIZE[model_key] = metadata["img_size"]
+                print(f"Model metadata: {model_key} input size = {metadata['img_size']}px")
+
     for name, path in DISEASE_MODEL_PATHS.items():
         if path.exists():
-            _disease_sessions[name] = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
+            # Prefer CUDA if available, fall back to CPU
+            providers = ["CUDAExecutionProvider", "CPUExecutionProvider"]
+            try:
+                _disease_sessions[name] = ort.InferenceSession(str(path), providers=providers)
+            except Exception:
+                _disease_sessions[name] = ort.InferenceSession(str(path), providers=["CPUExecutionProvider"])
             print(f"Loaded disease model '{name}' from {path}")
         else:
             print(f"WARNING: disease model '{name}' not found at {path}")
@@ -125,18 +147,46 @@ def predict_crop(
     }
 
 
-def predict_disease(image_bytes: bytes, model_name: str = "resnet50", confidence_threshold: float = 0.5):
+def predict_disease(image_bytes: bytes, model_name: str = "efficientnet_b4", confidence_threshold: float = 0.5):
+    # Fall back to any available model if the requested one isn't loaded
     session = _disease_sessions.get(model_name)
     if session is None:
-        raise RuntimeError(f"Disease model '{model_name}' is not loaded.")
+        # Try the preferred model first, then any available
+        for fallback in ["efficientnet_b4", "resnet50", "resnet9"]:
+            if fallback in _disease_sessions:
+                session = _disease_sessions[fallback]
+                model_name = fallback
+                break
+    if session is None:
+        raise RuntimeError("No disease detection model is loaded.")
 
-    img = Image.open(io.BytesIO(image_bytes)).convert("RGB").resize((256, 256))
+    # Determine input size for this model
+    input_size = _MODEL_INPUT_SIZE.get(model_name, 380)
+
+    # ── Preprocess: match training transforms exactly ──────────────────
+    # 1. Resize with slight over-size + center crop (matches val transforms)
+    img = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+    resize_size = int(input_size * 1.15)
+    img = img.resize((resize_size, resize_size), Image.LANCZOS)
+    # Center crop to input_size
+    left = (resize_size - input_size) // 2
+    top = (resize_size - input_size) // 2
+    img = img.crop((left, top, left + input_size, top + input_size))
+
+    # 2. To float32, scale to [0, 1]
     arr = np.asarray(img, dtype=np.float32) / 255.0
-    arr = np.transpose(arr, (2, 0, 1))[np.newaxis, ...]  # NCHW
+    # 3. HWC → CHW
+    arr = np.transpose(arr, (2, 0, 1))
+    # 4. ImageNet normalisation (CRITICAL: must match training)
+    arr = (arr - _IMAGENET_MEAN) / _IMAGENET_STD
+    # 5. Add batch dimension → NCHW
+    arr = arr[np.newaxis, ...]
 
+    # ── Inference ──────────────────────────────────────────────────────
     input_name = session.get_inputs()[0].name
     logits = session.run(None, {input_name: arr})[0]
 
+    # Softmax
     probabilities = np.exp(logits - np.max(logits, axis=1, keepdims=True))
     probabilities = probabilities / np.sum(probabilities, axis=1, keepdims=True)
     confidence = float(np.max(probabilities))
