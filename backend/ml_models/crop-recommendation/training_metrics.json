@@ -4,18 +4,18 @@
   "train_rows": 3360,
   "test_rows": 840,
   "test_size": 0.2,
-  "cv_accuracy_mean": 0.9708,
-  "cv_accuracy_std": 0.0047,
+  "cv_accuracy_mean": 0.969,
+  "cv_accuracy_std": 0.0054,
   "train_accuracy": 1.0,
   "test_accuracy": 0.9774,
   "feature_importance": {
-    "humidity": 0.2213,
-    "rainfall": 0.215,
-    "K": 0.1835,
-    "P": 0.1738,
-    "N": 0.1281,
-    "temperature": 0.0626,
-    "ph": 0.0158
+    "humidity": 0.2195,
+    "rainfall": 0.2078,
+    "K": 0.1922,
+    "P": 0.1791,
+    "N": 0.116,
+    "temperature": 0.0662,
+    "ph": 0.0191
   },
   "misclassifications": [
     {
@@ -55,7 +55,7 @@
     },
     {
       "actual": "mungbean",
-      "predicted": "mothbeans",
+      "predicted": "lentil",
       "count": 1
     },
     {

@@ -361,11 +361,20 @@
             <h2 class="font-semibold">Today's weather</h2>
             ${Icons.cloudSun(20)}
           </div>
-          <p class="mt-4 text-4xl font-semibold">29°C</p>
-          <p class="text-sm text-muted-foreground">Partly cloudy · Humidity 68% · Wind 12 km/h</p>
-          <p class="mt-4 text-sm" style="border-radius:var(--radius-2xl);background:color-mix(in oklab,var(--accent) 60%,transparent);padding:0.75rem;color:var(--accent-foreground)">
-            Rain expected tomorrow — avoid irrigation today.
-          </p>
+          ${weatherLoading ? `
+            <div class="skeleton mt-4" style="height:4rem"></div>
+            <div class="skeleton mt-2" style="height:1rem;width:80%"></div>
+          ` : weatherData && weatherData.current ? `
+            <p class="mt-4 text-4xl font-semibold">${Math.round(weatherData.current.temp)}°C</p>
+            <p class="text-sm text-muted-foreground capitalize">${weatherData.current.description} · Humidity ${weatherData.current.humidity}% · Wind ${Math.round(weatherData.current.wind_speed * 3.6)} km/h</p>
+            ${weatherData.forecast && weatherData.forecast.length > 0 && weatherData.forecast[0].rain_chance > 20 ? `
+              <p class="mt-4 text-sm" style="border-radius:var(--radius-2xl);background:color-mix(in oklab,var(--accent) 60%,transparent);padding:0.75rem;color:var(--accent-foreground)">
+                Rain expected tomorrow — avoid irrigation today.
+              </p>
+            ` : ''}
+          ` : `
+            <p class="mt-4 text-sm text-muted-foreground">Weather unavailable.</p>
+          `}
         </div>
 
         <!-- Latest recommendation -->
@@ -393,32 +402,58 @@
         <!-- Farm summary -->
         <div class="card p-6 shadow-soft anim-fade-up delay-2">
           <h2 class="font-semibold">Farm summary</h2>
+          ${latest ? `
           <dl class="mt-4 grid gap-3 text-sm">
-            ${[["Farm size", "3.2 acres"], ["Soil type", "Clay loam"], ["Irrigation", "Drip"], ["Previous crop", "Groundnut"], ["Organic", "Partial"]].map(([k, v]) => `
+            ${[
+              ["Soil pH", (latest.user_inputs || latest.inputs || {}).ph || "—"], 
+              ["Rainfall", ((latest.user_inputs || latest.inputs || {}).rainfall || "—") + " mm"], 
+              ["District", (latest.user_inputs || latest.inputs || {}).district || "—"], 
+              ["Block", (latest.user_inputs || latest.inputs || {}).block || "—"], 
+              ["Soil N", (latest.user_inputs || latest.inputs || {}).N || "—"]
+            ].map(([k, v]) => `
               <div class="flex justify-between gap-4">
                 <dt class="text-muted-foreground">${k}</dt>
                 <dd class="font-medium">${v}</dd>
               </div>
             `).join("")}
           </dl>
+          ` : dashboardLoading ? `
+            <div class="skeleton mt-4" style="height:6rem"></div>
+          ` : `
+            <p class="mt-4 text-sm text-muted-foreground">No recent farm data. Get a recommendation first.</p>
+          `}
         </div>
 
         <!-- Notifications -->
         <div class="card p-6 shadow-soft anim-fade-up" style="grid-column:span 2">
           <div class="flex items-center gap-2">
             ${Icons.bell(16)}
-            <h2 class="font-semibold">Notifications &amp; government updates</h2>
+            <h2 class="font-semibold">Market &amp; government updates</h2>
           </div>
           <ul class="mt-4 grid gap-3">
-            ${notifications.map(n => `
-              <li class="notification-item">
-                <div class="flex flex-wrap items-center gap-2">
-                  <p class="font-medium">${n.title}</p>
-                  <span class="badge ${n.tone === 'warn' ? 'badge-destructive' : 'badge-secondary'}">${n.tone === 'warn' ? 'Alert' : 'Update'}</span>
-                </div>
-                <p class="mt-1 text-sm text-muted-foreground">${n.body}</p>
-              </li>
-            `).join("")}
+            ${(typeof schemesLoading !== 'undefined' && schemesLoading) || (typeof marketLoading !== 'undefined' && marketLoading) ? `
+              <div class="skeleton mt-2" style="height:3.5rem"></div>
+              <div class="skeleton mt-2" style="height:3.5rem"></div>
+            ` : (
+              (typeof schemes !== 'undefined' ? schemes.slice(0, 2) : []).map(s => `
+                <li class="notification-item">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <p class="font-medium">${s.name}</p>
+                    <span class="badge badge-secondary">Scheme</span>
+                  </div>
+                  <p class="mt-1 text-sm text-muted-foreground">${s.benefit}</p>
+                </li>
+              `).join("") + 
+              (typeof marketPrices !== 'undefined' ? marketPrices.slice(0, 2) : []).map(m => `
+                <li class="notification-item">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <p class="font-medium">${m.crop} price at ${m.market}</p>
+                    <span class="badge badge-secondary">Market</span>
+                  </div>
+                  <p class="mt-1 text-sm text-muted-foreground">Currently trading at ${m.price} ${m.unit}.</p>
+                </li>
+              `).join("")
+            )}
           </ul>
         </div>
 
@@ -1234,7 +1269,7 @@
 
           <div class="flex justify-center mt-6">
             <button class="btn btn-primary" onclick="App.submitDiagnosis()" ${diagLoading ? 'disabled' : ''}>
-              ${diagLoading ? '<div class="spinner" style="width:1rem;height:1rem;border-width:2px;margin:0"></div> Analysing…' : `${Icons.sparkles(16)} Analyse leaf`}
+              ${diagLoading ? '<div class="spinner" style="width:1rem;height:1rem;border-width:2px;margin:0"></div> Analysing…' : `${Icons.sparkles(16)} Analyse`}
             </button>
           </div>
         ` : ''}
@@ -1646,9 +1681,30 @@
       loadSoilDistricts();
     }
 
-    // Load real recommendation history from IndexedDB on the dashboard
-    if (hash === "#/dashboard" && dashboardHistory === null && !dashboardLoading) {
-      loadDashboardHistory();
+    // Load real recommendation history and other dashboard data
+    if (hash === "#/dashboard") {
+      if (dashboardHistory === null && !dashboardLoading) {
+        loadDashboardHistory();
+      }
+      if (!weatherData && !weatherLoading && !isOffline) {
+        fetchLiveWeather();
+      }
+      if (typeof marketLoaded !== 'undefined' && !marketLoaded && !marketLoading && !isOffline) {
+        marketLoading = true;
+        fetchMarketPrices().then(success => {
+          marketLoaded = true;
+          marketLoading = false;
+          render();
+        });
+      }
+      if (typeof schemesLoaded !== 'undefined' && !schemesLoaded && !schemesLoading && !isOffline) {
+        schemesLoading = true;
+        fetchSchemes().then(success => {
+          schemesLoaded = true;
+          schemesLoading = false;
+          render();
+        });
+      }
     }
 
     // Init drag-drop if on diagnose page
