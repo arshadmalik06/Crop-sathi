@@ -34,11 +34,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from api.routes import crop, disease, sync, weather, market, schemes, soil
+from api.routes import crop, disease, sync, weather, market, schemes, soil, voice
 
 app.include_router(crop.router)
 app.include_router(disease.router)
 app.include_router(soil.router)
+app.include_router(voice.router)
 app.include_router(sync.router)
 app.include_router(weather.router)
 app.include_router(market.router)

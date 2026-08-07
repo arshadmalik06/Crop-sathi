@@ -1809,3 +1809,301 @@ input, textarea, select {
   }
 }
 
+
+/* ============================================================
+   VOICE ASSISTANT
+   Uses the same tokens as the rest of the app, so it follows
+   the light/dark switch without any extra rules.
+   ============================================================ */
+
+.voice-lang-switch {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.chip {
+  padding: 0.5rem 1.25rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.chip:hover { border-color: var(--primary); }
+
+.chip-active {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+
+.voice-panel {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.75rem;
+}
+
+.voice-idle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  text-align: center;
+}
+
+.voice-hint {
+  color: var(--muted-foreground);
+  font-size: 0.92rem;
+  max-width: 28rem;
+  line-height: 1.55;
+}
+
+.voice-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.voice-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.voice-badge-offline {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+.voice-badge-browser {
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+
+/* Transcript ------------------------------------------------ */
+
+.voice-transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 22rem;
+  overflow-y: auto;
+  padding: 0.25rem;
+}
+
+.voice-turn {
+  padding: 0.7rem 0.95rem;
+  border-radius: var(--radius-md);
+  max-width: 85%;
+  line-height: 1.5;
+}
+
+.voice-turn p { margin: 0; }
+
+.voice-turn-who {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0.65;
+  margin-bottom: 0.2rem;
+}
+
+.voice-turn-agent {
+  background: var(--muted);
+  color: var(--foreground);
+  align-self: flex-start;
+  border-bottom-left-radius: 0.35rem;
+}
+
+.voice-turn-farmer {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  align-self: flex-end;
+  border-bottom-right-radius: 0.35rem;
+}
+
+/* Result card ----------------------------------------------- */
+
+.voice-result {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--muted);
+}
+
+.voice-result h4 {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted-foreground);
+}
+
+.voice-result-main {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  text-transform: capitalize;
+}
+
+.voice-result-main span {
+  font-size: 0.95rem;
+  color: var(--muted-foreground);
+  margin-left: 0.4rem;
+}
+
+.voice-result-alt,
+.voice-result-meta {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--muted-foreground);
+  line-height: 1.5;
+}
+
+/* Mic -------------------------------------------------------- */
+
+.voice-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 1.5rem;
+}
+
+.voice-mic {
+  width: 4.5rem;
+  height: 4.5rem;
+  border-radius: 50%;
+  border: none;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease;
+}
+
+.voice-mic:hover:not(:disabled) { transform: scale(1.05); }
+.voice-mic:disabled { opacity: 0.55; cursor: not-allowed; }
+
+/* The ring pulses only while the mic is actually open, so the
+   farmer can tell listening from thinking at a glance. */
+.voice-mic.is-listening {
+  background: var(--destructive);
+  animation: voice-pulse 1.4s ease-out infinite;
+}
+
+@keyframes voice-pulse {
+  0%   { box-shadow: 0 0 0 0 color-mix(in oklch, var(--destructive) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 1.1rem color-mix(in oklch, var(--destructive) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--destructive) 0%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-mic.is-listening { animation: none; }
+}
+
+.voice-mic-label {
+  font-size: 0.88rem;
+  color: var(--muted-foreground);
+}
+
+.voice-photo-btn { cursor: pointer; }
+
+.voice-error {
+  margin-top: 1rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: var(--radius-sm);
+  background: color-mix(in oklch, var(--destructive) 12%, transparent);
+  color: var(--destructive);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+/* Typed fallback --------------------------------------------- */
+
+.voice-fallback {
+  margin-top: 1.25rem;
+  font-size: 0.88rem;
+}
+
+.voice-fallback summary {
+  cursor: pointer;
+  color: var(--muted-foreground);
+}
+
+.voice-fallback form {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.voice-fallback input {
+  flex: 1;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+@media (max-width: 640px) {
+  .voice-panel { padding: 1.15rem; }
+  .voice-turn { max-width: 92%; }
+}
+
+/* Tappable answers, shown beside the mic for questions whose answer
+   comes from a list the offline recogniser cannot reliably hear. */
+.voice-options {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--border);
+}
+
+.voice-options-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+  font-size: 0.82rem;
+  color: var(--muted-foreground);
+}
+
+.voice-options-filter {
+  flex: 0 1 11rem;
+  padding: 0.4rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+}
+
+.voice-options-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  max-height: 9rem;
+  overflow-y: auto;
+}
+
+.voice-options-list .chip {
+  padding: 0.35rem 0.8rem;
+  font-size: 0.85rem;
+}

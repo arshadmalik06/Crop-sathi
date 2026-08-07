@@ -56,3 +56,93 @@ village dropdowns that pull that village's measured soil from the API:
 | `GET /soil/village/{village_code}` | measured N/P/K/pH for one village |
 
 The values stay editable — a farmer with their own soil test can override them.
+
+## Voice agent
+
+A farmer can hold a spoken conversation with the app in Hindi or English, and
+it runs with no internet and no API key. The agent asks their name, resolves
+their village against the Soil Health Card data, and answers using the same
+crop and disease models the rest of the app uses.
+
+```bash
+cd backend
+pip install -r requirements.txt
+python scripts/download_voice_models.py   # ~254 MB, once
+uvicorn main:app --reload
+```
+
+Then open the app and go to **Voice Assistant**.
+
+### Why there is no LLM in it
+
+The requirement was that the agent must not hallucinate, so nothing generative
+sits in the conversation path. The agent is a state machine:
+
+| Layer | File | Guarantee |
+| --- | --- | --- |
+| What it says | `voice/phrasebook.py` | Every sentence is a fixed template. An unknown key raises rather than improvising. |
+| What it understands | `voice/slots.py` | Answers are matched against closed vocabularies — the 24 real districts, that block's real villages, fixed intent and season words. |
+| What it does | `voice/dialogue.py` | Calls `ml_service` directly. Every number spoken comes from a model's own output. |
+
+A crop, a village or a confidence figure that is not in the data has no code
+path by which it could be spoken. Ambiguous speech re-asks or offers a menu; it
+never guesses. After three failed attempts the agent stops insisting and points
+the farmer at the touch UI.
+
+### Speech stack
+
+Providers sit behind one interface in `voice/speech.py`, and the dialogue only
+ever sees text, so swapping one is an environment variable:
+
+| | Offline default | Alternatives |
+| --- | --- | --- |
+| Speech → text | Vosk | `browser` (Web Speech API), `bhashini` |
+| Text → speech | Piper | `browser`, `bhashini` |
+
+Bhashini adapters are stubbed, not implemented — the ULCA request shape depends
+on the pipeline ID issued with your credentials, and guessing it would produce
+code that looks finished and fails on first contact. The PWA falls back to the
+browser's own speech APIs automatically when the offline models are absent, so
+the page works before the download finishes.
+
+### Recognition is constrained per question
+
+A small offline model mishears isolated proper nouns — open recognition turns
+"रांची" into "राजीव". Because the dialogue always knows what it is expecting,
+`dialogue.expected_vocabulary()` hands that turn's closed answer set to Vosk as
+a grammar, which fixes districts, seasons and yes/no.
+
+It cannot fix everything: Vosk grammars only accept words already in the model's
+lexicon, and most of the 12,014 village names are not. Those questions therefore
+return an `options` list that the UI shows as tappable answers — the farmer
+speaks their district and taps their village.
+
+### Endpoints
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /voice/status` | Which providers are active and whether their models are present |
+| `POST /voice/start` | Open a conversation, get the greeting |
+| `POST /voice/listen` | Post recorded audio; the server transcribes and replies |
+| `POST /voice/say` | Post text instead of audio (browser speech, taps, testing) |
+| `POST /voice/photo` | Submit a leaf photo while the agent is waiting for one |
+| `POST /voice/speak` | Synthesise a line to WAV (204 when the client should speak it) |
+
+### Known issue: the disease models
+
+The voice agent will not state a diagnosis below 75% confidence, and says so
+plainly instead. That floor is deliberately stricter than the `/analyze-disease`
+default because the disease models are not currently trustworthy:
+
+`scripts/train_disease.py` trains ResNet50 on **224×224 centre crops with
+ImageNet normalisation**, but `services/ml_service.py` serves **256×256 with a
+plain `/255.0` and no normalisation**, and `scripts/finetune_disease_model.py`
+uses a third convention. A model fed an un-normalised tensor it was not trained
+on produces confident nonsense — on a photograph of a field, with no leaf in it
+at all, the current model returns "Bell Pepper, Healthy" at 66% and the API's own
+`is_confident` flag reports `true`.
+
+`disease_classes.json` is also absent, so `DISEASE_CLASSES` silently falls back
+to a hardcoded list whose label order has not been verified against the
+checkpoint. Both need fixing before the disease path can be trusted; the crop
+path is unaffected.

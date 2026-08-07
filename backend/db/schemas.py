@@ -91,6 +91,35 @@ class DiseaseDetectionResponse(BaseModel):
     error: Optional[str] = None
 
 
+class VoiceStartRequest(BaseModel):
+    lang: str = Field("hi", description="Conversation language: 'hi' or 'en'")
+
+
+class VoiceReply(BaseModel):
+    success: bool
+    session_id: str
+    text: str = Field(..., description="The line the agent should speak")
+    action: str = Field(..., description="'listen', 'capture_photo', or 'end'")
+    state: str = Field(..., description="Dialogue state after this turn")
+    slots: dict[str, Any] = Field(default_factory=dict, description="Filled slots so far")
+    data: Optional[dict[str, Any]] = Field(None, description="Raw model output, if any")
+    options: list[str] = Field(default_factory=list, description="Choices to offer on screen")
+    transcript: Optional[str] = Field(None, description="What the farmer was heard to say")
+
+
+class VoiceLanguageStatus(BaseModel):
+    asr_ready: bool
+    tts_ready: bool
+
+
+class VoiceStatusResponse(BaseModel):
+    success: bool
+    asr_provider: str
+    tts_provider: str
+    models_dir: str
+    languages: dict[str, VoiceLanguageStatus]
+
+
 class SyncAction(BaseModel):
     type: str = Field(..., description="'crop_recommendation' or 'disease_detection'")
     payload: dict[str, Any]

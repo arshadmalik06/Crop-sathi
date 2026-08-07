@@ -15,6 +15,7 @@
   const NAV_LINKS = [
     { hash: "#/", label: "Home" },
     { hash: "#/dashboard", label: "Dashboard" },
+    { hash: "#/voice", label: "Voice Assistant" },
     { hash: "#/recommend", label: "Crop Recommendation" },
     { hash: "#/diagnose", label: "Disease Detection" },
     { hash: "#/weather", label: "Weather" },
@@ -1597,6 +1598,8 @@
   const ROUTES = {
     "#/": renderHome,
     "#/dashboard": renderDashboard,
+    // Rendered by voice.js, which owns all speech state.
+    "#/voice": () => window.Voice.renderPage(),
     "#/recommend": renderRecommend,
     "#/diagnose": renderDiagnose,
     "#/weather": renderWeather,
@@ -1653,6 +1656,12 @@
       requestAnimationFrame(initUploadZone);
     }
 
+    // Probe which speech providers are available, so the voice page can pick
+    // between the offline models and the browser fallback.
+    if (hash === "#/voice") {
+      requestAnimationFrame(() => window.Voice.init());
+    }
+
     // Update document title
     updateTitle(hash);
   }
@@ -1661,6 +1670,7 @@
     const titles = {
       "#/": "Crop Sathi — AI Crop Recommendation for Farmers",
       "#/dashboard": "Farmer Dashboard — Crop Sathi",
+      "#/voice": "Voice Assistant — Crop Sathi",
       "#/recommend": "AI Crop Recommendation — Crop Sathi",
       "#/diagnose": "Plant Disease Detection — Crop Sathi",
       "#/weather": "Farm Weather & Advisories — Crop Sathi",
